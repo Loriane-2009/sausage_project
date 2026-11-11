@@ -1,0 +1,981 @@
+openapi: 3.1.0
+
+info:
+  title: Sausage API
+  version: 0.1.0
+  description: |
+    API REST du jeu multijoueur **Sausage** (type Snake), projet ArchiOWeb — HEIG-VD.
+
+    ## Conventions
+    - **Authentification** : header `Authorization: Bearer <token>` (JWT obtenu via `POST /api/auth/tokens`).
+    - **Création** : `201 Created` avec un header `Location`. **Suppression** : `204 No Content`. **Lecture et modification** : `200 OK`.
+    - **Erreurs** : corps `{ "message": "..." }`.
+      `401` pas connecté · `403` connecté mais interdit · `404` introuvable · `409` conflit d'état · `422` données manquantes ou invalides.
+    - **Listes paginées** : `?page=&pageSize=`, réponse `{ page, pageSize, total, data: [...] }`.
+    - **Format** : JSON en camelCase, dates en ISO 8601.
+    - Le mot de passe et le `passwordHash` ne sont **jamais** renvoyés.
+
+servers:
+  - url: http://localhost:3000
+    description: Développement local
+
+tags:
+  - name: Users
+    description: Comptes et profils
+  - name: Auth
+    description: Connexion (JWT)
+  - name: Maps
+    description: Plans de jeu et obstacles (gérés par les admins)
+  - name: Games
+    description: Parties
+  - name: Participations
+    description: Rejoindre, quitter une partie et enregistrer son score
+  - name: Rankings
+    description: Classement des joueurs
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ───────────────────────────── Users ─────────────────────────────
+  /api/users:
+    post:
+      tags: [Users]
+      summary: Crée un compte (inscription)
+      description: Le `role` vaut toujours `user` à la création.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreate'
+      responses:
+        '201':
+          description: Compte créé
+          headers:
+            Location:
+              $ref: '#/components/headers/Location'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '409':
+          description: '`username` ou `email` déjà pris'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /api/users/{id}:
+    parameters:
+      - $ref: '#/components/parameters/userId'
+    get:
+      tags: [Users]
+      summary: Renvoie le profil d'un utilisateur
+      description: |
+        Pour les autres joueurs, seul le `username` est renvoyé.
+        L'`email` n'est visible que par soi-même et par un admin.
+      responses:
+        '200':
+          description: Profil de l'utilisateur
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/User'
+                  - $ref: '#/components/schemas/UserPublic'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Users]
+      summary: Modifie un profil
+      description: Accès **soi-même ou admin**. Le `role` n'est modifiable que par un admin.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdate'
+      responses:
+        '200':
+          description: Profil modifié
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: '`username` ou `email` déjà pris'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+    delete:
+      tags: [Users]
+      summary: Supprime un compte
+      description: |
+        Accès **soi-même ou admin**. Supprime aussi ses participations et les parties
+        dont il est l'hôte (donc les participations des autres joueurs à ces parties).
+        Les classements se recalculent seuls.
+      responses:
+        '204':
+          description: Compte supprimé
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ───────────────────────────── Auth ─────────────────────────────
+  /api/auth/tokens:
+    post:
+      tags: [Auth]
+      summary: Connecte l'utilisateur et renvoie un JWT
+      description: Connexion par `username` uniquement.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Credentials'
+      responses:
+        '200':
+          description: Connexion réussie
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [token]
+                properties:
+                  token:
+                    type: string
+                    example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        '401':
+          description: Identifiants incorrects
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: '`username` ou `password` manquant'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ───────────────────────────── Maps ─────────────────────────────
+  /api/maps:
+    post:
+      tags: [Maps]
+      summary: Crée une map avec ses obstacles
+      description: |
+        Accès **admin**. La taille de la grille et le nombre d'obstacles par difficulté
+        sont définis dans le fichier de config.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MapInput'
+      responses:
+        '201':
+          description: Map créée
+          headers:
+            Location:
+              $ref: '#/components/headers/Location'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Map'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          description: |
+            Obstacle hors grille, en doublon, sur la zone de départ,
+            ou nombre d'obstacles ne correspondant pas à la difficulté
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      tags: [Maps]
+      summary: Liste les maps, filtrables par difficulté
+      description: Sert à choisir une map pour créer une partie.
+      parameters:
+        - $ref: '#/components/parameters/difficulty'
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/pageSize'
+      responses:
+        '200':
+          description: Liste paginée des maps
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PageEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Map'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/maps/{id}:
+    parameters:
+      - $ref: '#/components/parameters/mapId'
+    get:
+      tags: [Maps]
+      summary: Renvoie une map avec ses obstacles
+      description: Les obstacles sont embarqués dans la réponse (pas de route `/obstacles`).
+      responses:
+        '200':
+          description: La map
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Map'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Maps]
+      summary: Modifie la difficulté ou les obstacles d'une map
+      description: Accès **admin**. Mêmes règles de validation que la création.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MapUpdate'
+      responses:
+        '200':
+          description: Map modifiée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Map'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MapAlreadyUsed'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+    delete:
+      tags: [Maps]
+      summary: Supprime une map
+      description: Accès **admin**.
+      responses:
+        '204':
+          description: Map supprimée
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MapAlreadyUsed'
+
+  # ───────────────────────────── Games ─────────────────────────────
+  /api/games:
+    post:
+      tags: [Games]
+      summary: Crée une partie et son code d'invitation
+      description: |
+        Le serveur définit l'hôte (utilisateur connecté), génère `invitationCode`
+        et crée la participation de l'hôte. Statut `waiting` au départ.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GameCreate'
+      responses:
+        '201':
+          description: Partie créée
+          headers:
+            Location:
+              $ref: '#/components/headers/Location'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Game'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: La map n'existe pas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: '`maxPlayers` n''est pas entre 2 et 4'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      tags: [Games]
+      summary: Liste des parties, ou retrouve une partie par son code
+      description: |
+        - Avec `userId` : historique de l'utilisateur, trié par `creationDate` décroissante.
+          Seulement pour soi-même (sinon `403`), sauf admin.
+        - Avec `invitationCode` : 0 ou 1 partie en `waiting`, avec des infos minimales
+          (id, difficulté, nombre de joueurs).
+      parameters:
+        - name: userId
+          in: query
+          schema:
+            $ref: '#/components/schemas/ObjectId'
+        - name: invitationCode
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/GameStatus'
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/pageSize'
+      responses:
+        '200':
+          description: Liste paginée des parties
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PageEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          oneOf:
+                            - $ref: '#/components/schemas/Game'
+                            - $ref: '#/components/schemas/GameSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/games/{id}:
+    parameters:
+      - $ref: '#/components/parameters/gameId'
+    get:
+      tags: [Games]
+      summary: Détail d'une partie avec ses participations
+      description: |
+        Accès **participants ou admin**. Sans `include`, la réponse contient `mapId` ;
+        avec `include=map`, elle contient l'objet `map` complet.
+      parameters:
+        - name: include
+          in: query
+          schema:
+            type: string
+            enum: [map]
+      responses:
+        '200':
+          description: La partie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Game'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Games]
+      summary: Lance la partie
+      description: |
+        Accès **hôte**. Seule valeur acceptée : `playing`.
+        Transitions `waiting` → `playing` → `finished`, jamais en arrière (`409`).
+        Le serveur passe lui-même la partie en `finished` et calcule les `rank`
+        quand tous les joueurs ont terminé.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [playing]
+      responses:
+        '200':
+          description: Partie lancée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Game'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Transition de statut impossible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [Games]
+      summary: Supprime une partie
+      description: |
+        Accès **hôte ou admin**. L'hôte seulement tant que la partie est en `waiting`
+        (`409` sinon). Un admin peut toujours.
+      responses:
+        '204':
+          description: Partie supprimée
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: La partie n'est plus en `waiting`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ───────────────────────────── Participations ─────────────────────────────
+  /api/games/{id}/participations:
+    parameters:
+      - $ref: '#/components/parameters/gameId'
+    post:
+      tags: [Participations]
+      summary: Rejoint une partie avec son code
+      description: L'utilisateur est déduit du token. Le serveur attribue une couleur libre.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [invitationCode]
+              properties:
+                invitationCode:
+                  type: string
+                  example: K7P2QX
+      responses:
+        '201':
+          description: Participation créée
+          headers:
+            Location:
+              $ref: '#/components/headers/Location'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Participation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Code d'invitation incorrect
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Partie pleine, déjà lancée, ou joueur déjà inscrit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/games/{id}/participations/{userId}:
+    parameters:
+      - $ref: '#/components/parameters/gameId'
+      - name: userId
+        in: path
+        required: true
+        description: Identifiant de l'utilisateur participant
+        schema:
+          $ref: '#/components/schemas/ObjectId'
+    delete:
+      tags: [Participations]
+      summary: Quitte une partie, ou l'hôte exclut un joueur
+      description: |
+        Accès **soi-même ou hôte**. Seulement en `waiting` (`409` sinon).
+        Si l'hôte quitte, la partie est annulée (supprimée).
+      responses:
+        '204':
+          description: Participation supprimée
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: La partie n'est plus en `waiting`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    patch:
+      tags: [Participations]
+      summary: Enregistre le score final d'un joueur
+      description: |
+        Accès **soi-même** (`403` si `userId` ≠ utilisateur du token).
+        L'app envoie le score automatiquement quand le teckel du joueur meurt.
+        Quand le dernier joueur envoie son score, le serveur passe la partie en `finished`
+        et calcule les `rank` (égalités = même rang).
+        Le score est déclaré par le client, sans contrôle anti-triche.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [score]
+              properties:
+                score:
+                  type: integer
+                  minimum: 0
+                  example: 42
+      responses:
+        '200':
+          description: Score enregistré
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Participation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: La partie ou la participation n'existe pas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: La partie n'est pas en `playing`, ou le score a déjà été envoyé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: '`score` manquant ou pas un entier ≥ 0'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ───────────────────────────── Rankings ─────────────────────────────
+  /api/rankings:
+    get:
+      tags: [Rankings]
+      summary: Classement des joueurs
+      description: |
+        Calculé à chaque requête, rien n'est stocké. Meilleur score par utilisateur,
+        à partir des participations des parties `finished`. Filtrable par difficulté (via la map).
+      parameters:
+        - $ref: '#/components/parameters/difficulty'
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/pageSize'
+      responses:
+        '200':
+          description: Classement paginé
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PageEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/RankingEntry'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  headers:
+    Location:
+      description: URL de la ressource créée
+      schema:
+        type: string
+        example: /api/games/6730b2f1c9e77a0012ab34cd
+
+  parameters:
+    userId:
+      name: id
+      in: path
+      required: true
+      description: Identifiant de l'utilisateur
+      schema:
+        $ref: '#/components/schemas/ObjectId'
+    mapId:
+      name: id
+      in: path
+      required: true
+      description: Identifiant de la map
+      schema:
+        $ref: '#/components/schemas/ObjectId'
+    gameId:
+      name: id
+      in: path
+      required: true
+      description: Identifiant de la partie
+      schema:
+        $ref: '#/components/schemas/ObjectId'
+    difficulty:
+      name: difficulty
+      in: query
+      schema:
+        $ref: '#/components/schemas/Difficulty'
+    page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    pageSize:
+      name: pageSize
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 10
+
+  responses:
+    Unauthorized:
+      description: Pas connecté (token absent ou invalide)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Authentication required
+    Forbidden:
+      description: Connecté mais action interdite
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Forbidden
+    NotFound:
+      description: Ressource introuvable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Not Found
+    UnprocessableEntity:
+      description: Données manquantes ou invalides
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    MapAlreadyUsed:
+      description: Une partie a déjà utilisé cette map
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    ObjectId:
+      type: string
+      pattern: '^[0-9a-fA-F]{24}$'
+      example: 6730b2f1c9e77a0012ab34cd
+
+    Error:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+
+    PageEnvelope:
+      type: object
+      required: [page, pageSize, total, data]
+      properties:
+        page:
+          type: integer
+          example: 1
+        pageSize:
+          type: integer
+          example: 10
+        total:
+          type: integer
+          example: 27
+        data:
+          type: array
+          items: {}
+
+    Role:
+      type: string
+      enum: [user, admin]
+
+    Difficulty:
+      type: string
+      enum: [easy, medium, hard]
+
+    GameStatus:
+      type: string
+      enum: [waiting, playing, finished]
+
+    # ── Users ──
+    UserCreate:
+      type: object
+      required: [username, email, password]
+      properties:
+        username:
+          type: string
+          example: loriane
+        email:
+          type: string
+          format: email
+          example: loriane@example.com
+        password:
+          type: string
+          format: password
+          writeOnly: true
+
+    UserUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          writeOnly: true
+        defaultColor:
+          type: string
+          example: '#E4572E'
+        role:
+          $ref: '#/components/schemas/Role'
+
+    User:
+      type: object
+      description: Profil complet (soi-même ou admin)
+      properties:
+        id:
+          $ref: '#/components/schemas/ObjectId'
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/Role'
+        defaultColor:
+          type: string
+        creationDate:
+          type: string
+          format: date-time
+
+    UserPublic:
+      type: object
+      description: Profil vu par un autre joueur
+      properties:
+        id:
+          $ref: '#/components/schemas/ObjectId'
+        username:
+          type: string
+
+    Credentials:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          example: loriane
+        password:
+          type: string
+          format: password
+
+    # ── Maps ──
+    Obstacle:
+      type: object
+      required: [posX, posY]
+      properties:
+        posX:
+          type: integer
+          minimum: 0
+          example: 4
+        posY:
+          type: integer
+          minimum: 0
+          example: 7
+
+    MapInput:
+      type: object
+      required: [difficulty, obstacles]
+      properties:
+        difficulty:
+          $ref: '#/components/schemas/Difficulty'
+        obstacles:
+          type: array
+          items:
+            $ref: '#/components/schemas/Obstacle'
+
+    MapUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        difficulty:
+          $ref: '#/components/schemas/Difficulty'
+        obstacles:
+          type: array
+          items:
+            $ref: '#/components/schemas/Obstacle'
+
+    Map:
+      type: object
+      properties:
+        id:
+          $ref: '#/components/schemas/ObjectId'
+        difficulty:
+          $ref: '#/components/schemas/Difficulty'
+        obstacles:
+          type: array
+          items:
+            $ref: '#/components/schemas/Obstacle'
+        creationDate:
+          type: string
+          format: date-time
+
+    # ── Games ──
+    GameCreate:
+      type: object
+      required: [mapId, maxPlayers]
+      properties:
+        mapId:
+          $ref: '#/components/schemas/ObjectId'
+        maxPlayers:
+          type: integer
+          minimum: 2
+          maximum: 4
+          example: 4
+
+    Game:
+      type: object
+      properties:
+        id:
+          $ref: '#/components/schemas/ObjectId'
+        mapId:
+          $ref: '#/components/schemas/ObjectId'
+        map:
+          description: Présent seulement avec `?include=map`
+          $ref: '#/components/schemas/Map'
+        hostId:
+          $ref: '#/components/schemas/ObjectId'
+        status:
+          $ref: '#/components/schemas/GameStatus'
+        invitationCode:
+          type: string
+          example: K7P2QX
+        maxPlayers:
+          type: integer
+          minimum: 2
+          maximum: 4
+        participations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Participation'
+        creationDate:
+          type: string
+          format: date-time
+
+    GameSummary:
+      type: object
+      description: Infos minimales renvoyées lors d'une recherche par `invitationCode`
+      properties:
+        id:
+          $ref: '#/components/schemas/ObjectId'
+        difficulty:
+          $ref: '#/components/schemas/Difficulty'
+        playerCount:
+          type: integer
+          example: 2
+        maxPlayers:
+          type: integer
+          example: 4
+
+    # ── Participations ──
+    Participation:
+      type: object
+      properties:
+        userId:
+          $ref: '#/components/schemas/ObjectId'
+        username:
+          type: string
+        color:
+          type: string
+          example: '#E4572E'
+        score:
+          type: [integer, 'null']
+          minimum: 0
+          description: '`null` tant que le joueur n''a pas fini'
+        rank:
+          type: [integer, 'null']
+          minimum: 1
+          description: '`null` tant que la partie n''est pas terminée'
+
+    # ── Rankings ──
+    RankingEntry:
+      type: object
+      properties:
+        rank:
+          type: integer
+          example: 1
+        userId:
+          $ref: '#/components/schemas/ObjectId'
+        username:
+          type: string
+          example: loriane
+        bestScore:
+          type: integer
+          example: 128
