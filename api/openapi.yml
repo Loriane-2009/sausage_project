@@ -762,21 +762,27 @@ components:
       enum: [waiting, playing, finished]
 
     # ── Users ──
-    UserCreate:
+        UserCreate:
       type: object
       required: [username, email, password]
       properties:
         username:
           type: string
+          minLength: 3
+          maxLength: 20
+          description: Unique
           example: loriane
         email:
           type: string
           format: email
+          description: Unique, enregistré en minuscules
           example: loriane@example.com
         password:
           type: string
           format: password
+          minLength: 8
           writeOnly: true
+          example: motdepasse123
 
     UserUpdate:
       type: object
@@ -791,13 +797,8 @@ components:
           type: string
           format: password
           writeOnly: true
-        defaultColor:
-          type: string
-          example: '#E4572E'
-        role:
-          $ref: '#/components/schemas/Role'
-
-    User:
+        
+      User:
       type: object
       description: Profil complet (soi-même ou admin)
       properties:
@@ -805,14 +806,17 @@ components:
           $ref: '#/components/schemas/ObjectId'
         username:
           type: string
+          example: loriane
         email:
           type: string
           format: email
+          example: loriane@example.com
         role:
           $ref: '#/components/schemas/Role'
-        defaultColor:
+        createdAt:
           type: string
-        creationDate:
+          format: date-time
+        updatedAt:
           type: string
           format: date-time
 
