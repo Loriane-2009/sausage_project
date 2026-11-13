@@ -762,7 +762,7 @@ components:
       enum: [waiting, playing, finished]
 
     # ── Users ──
-        UserCreate:
+    UserCreate:
       type: object
       required: [username, email, password]
       properties:
@@ -797,8 +797,8 @@ components:
           type: string
           format: password
           writeOnly: true
-        
-      User:
+
+    User:
       type: object
       description: Profil complet (soi-même ou admin)
       properties:
