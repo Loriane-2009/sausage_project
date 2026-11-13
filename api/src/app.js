@@ -14,7 +14,7 @@ app.use(logger('dev'));
 app.use(express.json());
 
 app.use('/', indexRouter);
-app.use('/users', usersRouter);
+app.use('/api/users', usersRouter);
 
 await mongoose.connect(
   process.env.DATABASE_URL ?? 'mongodb://127.0.0.1/your-app-name'
@@ -27,6 +27,17 @@ app.use(function (req, res, next) {
 
 // Error handler
 app.use(function (err, req, res, next) {
+  // Valeur unique déjà prise (username ou email) → 409 Conflict
+  if (err.code === 11000) {
+    const field = Object.keys(err.keyValue ?? {})[0] ?? 'valeur';
+    return res.status(409).send({ message: `${field} est déjà utilisé` });
+  }
+
+  // Données invalides selon le modèle → 422 Unprocessable Entity
+  if (err.name === 'ValidationError') {
+    return res.status(422).send({ message: err.message });
+  }
+
   res.status(err.status ?? 500);
   res.send({ message: err.message });
 });
