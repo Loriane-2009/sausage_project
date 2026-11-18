@@ -17,7 +17,7 @@ app.use('/', indexRouter);
 app.use('/api/users', usersRouter);
 
 await mongoose.connect(
-  process.env.DATABASE_URL ?? 'mongodb://127.0.0.1/your-app-name'
+  process.env.DATABASE_URL ?? 'mongodb://127.0.0.1/sausage'
 );
 
 // Catch 404 and forward to the error handler
