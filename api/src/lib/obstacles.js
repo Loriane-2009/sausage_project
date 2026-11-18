@@ -1,4 +1,4 @@
-import { GRID_SIZE, OBSTACLES_BY_DIFFICULTY } from "../config.js";
+import { GRID_SIZE, OBSTACLES_BY_DIFFICULTY } from "../constant.js";
 
 // Lance une erreur si les obstacles sont invalides, ne fait rien sinon
 export function validateObstacles(obstacles, difficulty) {

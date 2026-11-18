@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { validateObstacles } from "../../src/lib/obstacles.js";
-import { GRID_SIZE } from "../../src/config.js";
+import { GRID_SIZE } from "../../src/constant.js";
 
 describe("validateObstacles", () => {
   it("accepte des obstacles valides", () => {

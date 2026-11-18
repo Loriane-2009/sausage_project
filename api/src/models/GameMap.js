@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { OBSTACLES_BY_DIFFICULTY } from "../config.js";
+import { OBSTACLES_BY_DIFFICULTY } from "../constant.js";
 import { validateObstacles } from "../lib/obstacles.js";
 
 const { Schema } = mongoose;
