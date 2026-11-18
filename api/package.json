@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "node --watch --env-file-if-exists=.env src/server.js",
     "start": "node src/server.js",
-    "test": "node --env-file=.env.test --test --test-concurrency=1 --experimental-test-coverage --test-coverage-exclude=tests/**"
+    "test": "node --env-file=.env.test --test --test-concurrency=1 --experimental-test-coverage --test-coverage-exclude=tests/**",
+    "seed": "node --env-file-if-exists=.env src/seed.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
