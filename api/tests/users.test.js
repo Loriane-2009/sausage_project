@@ -39,7 +39,10 @@ describe('POST /api/users', () => {
 
     assert.equal(res.status, 201);
     assert.match(res.headers['content-type'], /application\/json/);
-    assert.ok(mongoose.isValidObjectId(res.body.id), 'la réponse doit contenir un id');
+    assert.ok(
+      mongoose.isValidObjectId(res.body.id),
+      'la réponse doit contenir un id'
+    );
     assert.equal(res.headers.location, `/api/users/${res.body.id}`);
     assert.equal(res.body.username, 'lea');
     assert.equal(res.body.email, 'lea@example.com');

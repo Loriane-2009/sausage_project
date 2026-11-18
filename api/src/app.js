@@ -3,8 +3,6 @@ import createError from 'http-errors';
 import logger from 'morgan';
 import mongoose from 'mongoose';
 
-
-
 import indexRouter from './routes/index.js';
 import usersRouter from './routes/users.js';
 
