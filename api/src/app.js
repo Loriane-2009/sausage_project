@@ -3,10 +3,11 @@ import createError from 'http-errors';
 import logger from 'morgan';
 import mongoose from 'mongoose';
 
-
+import { databaseUrl } from './config.js';
 
 import indexRouter from './routes/index.js';
 import usersRouter from './routes/users.js';
+import authRouter from './routes/auth.js';
 
 const app = express();
 
@@ -15,10 +16,9 @@ app.use(express.json());
 
 app.use('/', indexRouter);
 app.use('/api/users', usersRouter);
+app.use('/api/auth', authRouter);
 
-await mongoose.connect(
-  process.env.DATABASE_URL ?? 'mongodb://127.0.0.1/sausage'
-);
+await mongoose.connect(databaseUrl);
 
 // Catch 404 and forward to the error handler
 app.use(function (req, res, next) {
