@@ -82,3 +82,35 @@ export async function getGame(req, res) {
 
   res.send(game);
 }
+export async function updateGame(req, res) {
+  const { id } = req.params;
+
+  if (!OBJECT_ID.test(id)) {
+    throw createError(404, "Partie introuvable");
+  }
+
+  const game = await Game.findById(id);
+  if (!game) {
+    throw createError(404, "Partie introuvable");
+  }
+
+  // Seul l'hôte peut changer le statut
+  if (!game.host.equals(req.currentUser._id)) {
+    throw createError(403, "Seul l'hôte peut lancer la partie");
+  }
+
+  // Le seul changement autorisé : passer à "playing"
+  if (req.body?.status !== "playing") {
+    throw createError(422, 'Le statut doit être "playing"');
+  }
+
+  // On ne peut lancer qu'une partie en attente
+  if (game.status !== "waiting") {
+    throw createError(409, "La partie a déjà été lancée");
+  }
+
+  game.status = "playing";
+  await game.save();
+
+  res.send(game);
+}
