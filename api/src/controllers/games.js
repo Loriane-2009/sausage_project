@@ -114,3 +114,32 @@ export async function updateGame(req, res) {
 
   res.send(game);
 }
+export async function deleteGame(req, res) {
+  const { id } = req.params;
+
+  if (!OBJECT_ID.test(id)) {
+    throw createError(404, "Partie introuvable");
+  }
+
+  const game = await Game.findById(id);
+  if (!game) {
+    throw createError(404, "Partie introuvable");
+  }
+
+  const isHost = game.host.equals(req.currentUser._id);
+  const isAdmin = req.currentUser.role === "admin";
+
+  // Seuls l'hôte et les admins peuvent supprimer
+  if (!isHost && !isAdmin) {
+    throw createError(403, "Tu ne peux pas supprimer cette partie");
+  }
+
+  // Un hôte ne peut supprimer qu'une partie encore en attente
+  if (!isAdmin && game.status !== "waiting") {
+    throw createError(409, "Impossible de supprimer une partie déjà lancée");
+  }
+
+  await game.deleteOne();
+
+  res.status(204).send();
+}
