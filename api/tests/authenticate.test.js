@@ -46,6 +46,7 @@ describe('authenticate', () => {
     const res = await supertest(app).get('/protected');
 
     assert.equal(res.status, 401);
+    assert.equal(res.headers['www-authenticate'], 'Bearer');
     assert.equal(res.body.message, 'Authentication required');
   });
 
@@ -57,6 +58,7 @@ describe('authenticate', () => {
       .set('Authorization', generateToken(user));
 
     assert.equal(res.status, 401);
+    assert.equal(res.headers['www-authenticate'], 'Bearer');
   });
 
   test('renvoie 401 si le token est signé avec un autre secret', async () => {
@@ -68,6 +70,7 @@ describe('authenticate', () => {
       .set('Authorization', `Bearer ${fakeToken}`);
 
     assert.equal(res.status, 401);
+    assert.equal(res.headers['www-authenticate'], 'Bearer');
     assert.equal(res.body.message, 'Invalid or expired token');
   });
 
@@ -83,6 +86,7 @@ describe('authenticate', () => {
       .set('Authorization', `Bearer ${expired}`);
 
     assert.equal(res.status, 401);
+    assert.equal(res.headers['www-authenticate'], 'Bearer');
   });
 
   test("renvoie 401 si l'utilisateur du token a été supprimé", async () => {
@@ -95,6 +99,7 @@ describe('authenticate', () => {
       .set('Authorization', `Bearer ${token}`);
 
     assert.equal(res.status, 401);
+    assert.equal(res.headers['www-authenticate'], 'Bearer');
   });
 });
 
