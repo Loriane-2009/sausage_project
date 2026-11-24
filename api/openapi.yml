@@ -332,7 +332,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '422':
-          description: '`maxPlayers` n''est pas entre 2 et 4'
+          description: '`mapId` manquant ou mal formé, ou `maxPlayers` pas un entier entre 2 et 4'
           content:
             application/json:
               schema:
