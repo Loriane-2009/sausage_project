@@ -1,6 +1,7 @@
 import GameMap from "../models/GameMap.js";
 import Game from "../models/game.js";
 import { generateInvitationCode } from "../lib/invitationCode.js";
+import createError from "http-errors";
 
 // Un identifiant MongoDB = 24 caractères hexadécimaux
 const OBJECT_ID = /^[0-9a-fA-F]{24}$/;
@@ -11,11 +12,9 @@ export async function createGame(req, res) {
   const { mapId, maxPlayers } = req.body ?? {};
 
   if (typeof mapId !== "string" || !OBJECT_ID.test(mapId)) {
-    return res
-      .status(422)
-      .send({
-        message: "mapId est obligatoire et doit être un identifiant valide",
-      });
+    return res.status(422).send({
+      message: "mapId est obligatoire et doit être un identifiant valide",
+    });
   }
   if (!Number.isInteger(maxPlayers) || maxPlayers < 2 || maxPlayers > 4) {
     return res
@@ -53,4 +52,33 @@ export async function createGame(req, res) {
   }
 
   res.status(201).location(`/api/games/${game._id}`).send(game);
+}
+export async function getGame(req, res) {
+  const { id } = req.params;
+
+  // Un id mal formé = une partie qui n'existe pas
+  if (!OBJECT_ID.test(id)) {
+    throw createError(404, "Partie introuvable");
+  }
+
+  // ?include=map permet de récupérer la map complète au lieu de son id
+  let query = Game.findById(id);
+  if (req.query.include === "map") {
+    query = query.populate("map");
+  }
+  const game = await query;
+
+  if (!game) {
+    throw createError(404, "Partie introuvable");
+  }
+
+  // Seuls les participants et les admins peuvent voir la partie
+  const isParticipant = game.participations.some((p) =>
+    p.user.equals(req.currentUser._id),
+  );
+  if (!isParticipant && req.currentUser.role !== "admin") {
+    throw createError(403, "Tu n'as pas accès à cette partie");
+  }
+
+  res.send(game);
 }
