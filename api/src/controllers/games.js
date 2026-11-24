@@ -143,3 +143,86 @@ export async function deleteGame(req, res) {
 
   res.status(204).send();
 }
+const MAX_PAGE_SIZE = 50;
+
+// Lit un entier positif dans l'URL. Renvoie null si la valeur est invalide.
+function parsePositiveInt(value, defaultValue) {
+  if (value === undefined) {
+    return defaultValue;
+  }
+  if (typeof value !== "string" || !/^[1-9]\d*$/.test(value)) {
+    return null;
+  }
+  return Number(value);
+}
+
+export async function listGames(req, res) {
+  const { userId, invitationCode, status } = req.query;
+
+  const page = parsePositiveInt(req.query.page, 1);
+  const pageSize = parsePositiveInt(req.query.pageSize, 10);
+  if (page === null || pageSize === null || pageSize > MAX_PAGE_SIZE) {
+    throw createError(
+      422,
+      `page et pageSize doivent être des entiers positifs (pageSize max ${MAX_PAGE_SIZE})`,
+    );
+  }
+
+  // Recherche par code d'invitation : infos minimales, partie en attente seulement
+  if (invitationCode !== undefined) {
+    if (typeof invitationCode !== "string" || invitationCode === "") {
+      throw createError(422, "Code d'invitation invalide");
+    }
+    const found = await Game.find({
+      invitationCode: invitationCode.toUpperCase(),
+      status: "waiting",
+    }).populate("map");
+
+    const data = found.map((game) => ({
+      id: game.id,
+      difficulty: game.map?.difficulty,
+      playerCount: game.participations.length,
+      maxPlayers: game.maxPlayers,
+    }));
+    return res.send({ page, pageSize, total: data.length, data });
+  }
+
+  const filter = {};
+
+  if (status !== undefined) {
+    const allowed = Game.schema.path("status").enumValues;
+    if (typeof status !== "string" || !allowed.includes(status)) {
+      throw createError(422, `Statut invalide (${allowed.join(", ")})`);
+    }
+    filter.status = status;
+  }
+
+  const isAdmin = req.currentUser.role === "admin";
+  let targetUserId;
+  if (userId !== undefined) {
+    if (typeof userId !== "string" || !OBJECT_ID.test(userId)) {
+      throw createError(422, "userId invalide");
+    }
+    // On ne peut voir que son propre historique, sauf si on est admin
+    if (!isAdmin && userId !== req.currentUser.id) {
+      throw createError(403, "Tu ne peux voir que tes propres parties");
+    }
+    targetUserId = userId;
+  } else if (!isAdmin) {
+    // Sans filtre, un utilisateur normal voit seulement ses parties
+    targetUserId = req.currentUser.id;
+  }
+  if (targetUserId) {
+    filter["participations.user"] = targetUserId;
+  }
+
+  const [data, total] = await Promise.all([
+    Game.find(filter)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * pageSize)
+      .limit(pageSize),
+    Game.countDocuments(filter),
+  ]);
+
+  res.send({ page, pageSize, total, data });
+}
