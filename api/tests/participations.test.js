@@ -83,6 +83,11 @@ describe('POST /api/games/:id/participations', () => {
     assert.equal(res.status, 404);
   });
 
+  it('404 : id de partie mal formé', async () => {
+    const res = await join('pas-un-id', joueur);
+    assert.equal(res.status, 404);
+  });
+
   it('409 : la partie est pleine', async () => {
     const game = await createGame(hote, {
       maxPlayers: 2,
@@ -192,15 +197,115 @@ describe('DELETE /api/games/:id/participations/:userId', () => {
 });
 
 describe('PATCH /api/games/:id/participations/:userId', () => {
-  it.todo('200 : un joueur envoie son score');
-  it.todo(
-    '200 : le dernier score passe la partie en finished et calcule les rangs'
-  );
-  it.todo('401 : sans token');
-  it.todo("403 : un joueur ne peut pas envoyer le score d'un autre");
-  it.todo('404 : partie inconnue');
-  it.todo("409 : la partie n'est pas en cours");
-  it.todo('409 : le score a déjà été envoyé');
-  it.todo('422 : score manquant');
-  it.todo('422 : score négatif ou non entier');
+  let hote;
+  let joueur;
+  let autre;
+
+  beforeEach(async () => {
+    hote = await createUser({ username: 'hote', email: 'hote@test.ch' });
+    joueur = await createUser({ username: 'joueur', email: 'joueur@test.ch' });
+    autre = await createUser({ username: 'autre', email: 'autre@test.ch' });
+  });
+
+  const sendScore = async (gameId, userId, user, body) =>
+    supertest(app)
+      .patch(`/api/games/${gameId}/participations/${userId}`)
+      .set('Authorization', `Bearer ${await generateToken(user)}`)
+      .send(body);
+
+  const playingGame = (overrides = {}) =>
+    createGame(hote, {
+      status: 'playing',
+      participations: [{ user: hote._id }, { user: joueur._id }],
+      ...overrides
+    });
+
+  it('200 : un joueur envoie son score', async () => {
+    const game = await playingGame();
+    const res = await sendScore(game.id, joueur.id, joueur, { score: 50 });
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body, { user: joueur.id, score: 50, rank: null });
+    const inDb = await Game.findById(game.id);
+    assert.equal(inDb.status, 'playing');
+    assert.equal(inDb.participations[1].score, 50);
+  });
+
+  it('200 : le dernier score termine la partie et calcule les rangs', async () => {
+    const game = await playingGame({
+      participations: [{ user: hote._id, score: 30 }, { user: joueur._id }]
+    });
+    const res = await sendScore(game.id, joueur.id, joueur, { score: 50 });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.rank, 1);
+    const inDb = await Game.findById(game.id);
+    assert.equal(inDb.status, 'finished');
+    assert.equal(inDb.participations[0].rank, 2);
+    assert.equal(inDb.participations[1].rank, 1);
+  });
+
+  it('401 : sans token', async () => {
+    const game = await playingGame();
+    const res = await supertest(app)
+      .patch(`/api/games/${game.id}/participations/${joueur.id}`)
+      .send({ score: 50 });
+    assert.equal(res.status, 401);
+  });
+
+  it("403 : un joueur ne peut pas envoyer le score d'un autre", async () => {
+    const game = await playingGame();
+    const res = await sendScore(game.id, hote.id, joueur, { score: 50 });
+    assert.equal(res.status, 403);
+    const inDb = await Game.findById(game.id);
+    assert.equal(inDb.participations[0].score, null);
+  });
+
+  it('404 : partie inconnue', async () => {
+    const res = await sendScore(
+      new mongoose.Types.ObjectId(),
+      joueur.id,
+      joueur,
+      { score: 50 }
+    );
+    assert.equal(res.status, 404);
+  });
+
+  it("404 : le joueur n'est pas inscrit à la partie", async () => {
+    const game = await playingGame();
+    const res = await sendScore(game.id, autre.id, autre, { score: 50 });
+    assert.equal(res.status, 404);
+  });
+
+  it("409 : la partie n'est pas en cours", async () => {
+    const game = await playingGame({ status: 'waiting' });
+    const res = await sendScore(game.id, joueur.id, joueur, { score: 50 });
+    assert.equal(res.status, 409);
+  });
+
+  it('409 : le score a déjà été envoyé', async () => {
+    const game = await playingGame({
+      participations: [{ user: hote._id }, { user: joueur._id, score: 20 }]
+    });
+    const res = await sendScore(game.id, joueur.id, joueur, { score: 50 });
+    assert.equal(res.status, 409);
+    const inDb = await Game.findById(game.id);
+    assert.equal(inDb.participations[1].score, 20);
+  });
+
+  it('422 : score manquant', async () => {
+    const game = await playingGame();
+    const res = await sendScore(game.id, joueur.id, joueur, {});
+    assert.equal(res.status, 422);
+  });
+
+  it('422 : score négatif', async () => {
+    const game = await playingGame();
+    const res = await sendScore(game.id, joueur.id, joueur, { score: -5 });
+    assert.equal(res.status, 422);
+  });
+
+  it('422 : score à virgule', async () => {
+    const game = await playingGame();
+    const res = await sendScore(game.id, joueur.id, joueur, { score: 12.5 });
+    assert.equal(res.status, 422);
+  });
 });
