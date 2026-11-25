@@ -19,7 +19,10 @@ after(() => mongoose.disconnect());
 
 describe('POST /api/auth/tokens', () => {
   test('renvoie 200 et un JWT valide avec les bons identifiants', async () => {
-    const user = await createUser({ username: 'lea', password: 'motdepasse123' });
+    const user = await createUser({
+      username: 'lea',
+      password: 'motdepasse123'
+    });
 
     const res = await supertest(app)
       .post('/api/auth/tokens')
