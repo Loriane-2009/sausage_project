@@ -44,3 +44,33 @@ export async function joinGame(req, res) {
     .location(`/api/games/${game.id}/participations/${userId}`)
     .send(game.participations.at(-1));
 }
+
+export async function leaveGame(req, res) {
+  const game = await findGame(req.params.id);
+  const { userId } = req.params;
+  const currentUserId = req.currentUser._id.toString();
+  const hostId = game.host.toString();
+
+  if (currentUserId !== userId && currentUserId !== hostId) {
+    throw createError(403, 'Tu ne peux pas retirer ce joueur');
+  }
+
+  const index = game.participations.findIndex(
+    p => p.user.toString() === userId
+  );
+  if (index === -1) {
+    throw createError(404, 'Participation introuvable');
+  }
+  if (game.status !== 'waiting') {
+    throw createError(409, 'La partie a déjà été lancée');
+  }
+
+  if (userId === hostId) {
+    await game.deleteOne();
+  } else {
+    game.participations.splice(index, 1);
+    await game.save();
+  }
+
+  res.status(204).send();
+}
