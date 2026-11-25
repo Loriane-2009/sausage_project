@@ -1,6 +1,6 @@
-import GameMap from "../models/GameMap.js";
-import Game from "../models/game.js";
-import { generateInvitationCode } from "../lib/invitationCode.js";
+import GameMap from '../models/GameMap.js';
+import Game from '../models/game.js';
+import { generateInvitationCode } from '../lib/invitationCode.js';
 
 // Un identifiant MongoDB = 24 caractères hexadécimaux
 const OBJECT_ID = /^[0-9a-fA-F]{24}$/;
@@ -10,17 +10,15 @@ const MAX_ATTEMPTS = 5;
 export async function createGame(req, res) {
   const { mapId, maxPlayers } = req.body ?? {};
 
-  if (typeof mapId !== "string" || !OBJECT_ID.test(mapId)) {
-    return res
-      .status(422)
-      .send({
-        message: "mapId est obligatoire et doit être un identifiant valide",
-      });
+  if (typeof mapId !== 'string' || !OBJECT_ID.test(mapId)) {
+    return res.status(422).send({
+      message: 'mapId est obligatoire et doit être un identifiant valide'
+    });
   }
   if (!Number.isInteger(maxPlayers) || maxPlayers < 2 || maxPlayers > 4) {
     return res
       .status(422)
-      .send({ message: "maxPlayers doit être un entier entre 2 et 4" });
+      .send({ message: 'maxPlayers doit être un entier entre 2 et 4' });
   }
 
   // La map doit exister
@@ -42,7 +40,7 @@ export async function createGame(req, res) {
         host: hostId,
         invitationCode: generateInvitationCode(),
         maxPlayers,
-        participations: [{ user: hostId }],
+        participations: [{ user: hostId }]
       });
     } catch (err) {
       if (err.code !== 11000) throw err;
