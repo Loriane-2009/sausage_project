@@ -451,7 +451,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '422':
-          $ref: '#/components/responses/UnprocessableEntity'        
+          $ref: '#/components/responses/UnprocessableEntity'
     delete:
       tags: [Games]
       summary: Supprime une partie
@@ -967,11 +967,11 @@ components:
         score:
           type: [integer, 'null']
           minimum: 0
-          description: '`null` tant que le joueur n''a pas fini'
+          description: "`null` tant que le joueur n'a pas fini"
         rank:
           type: [integer, 'null']
           minimum: 1
-          description: '`null` tant que la partie n''est pas terminée'
+          description: "`null` tant que la partie n'est pas terminée"
 
     # ── Rankings ──
     RankingEntry:
