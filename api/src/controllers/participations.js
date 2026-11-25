@@ -1,5 +1,6 @@
 import createError from 'http-errors';
 
+import { computeRanks } from '../lib/ranks.js';
 import Game from '../models/game.js';
 
 const OBJECT_ID = /^[0-9a-fA-F]{24}$/;
@@ -73,4 +74,54 @@ export async function leaveGame(req, res) {
   }
 
   res.status(204).send();
+}
+
+export async function submitScore(req, res) {
+  const game = await findGame(req.params.id);
+  const { userId } = req.params;
+  const { score } = req.body ?? {};
+
+  if (req.currentUser._id.toString() !== userId) {
+    throw createError(403, 'Tu ne peux envoyer que ton propre score');
+  }
+  if (!Number.isInteger(score) || score < 0) {
+    throw createError(422, 'Le score doit être un entier positif ou nul');
+  }
+
+  const participation = game.participations.find(
+    p => p.user.toString() === userId
+  );
+  if (!participation) {
+    throw createError(404, 'Participation introuvable');
+  }
+  if (game.status !== 'playing') {
+    throw createError(409, "La partie n'est pas en cours");
+  }
+  if (participation.score !== null) {
+    throw createError(409, 'Tu as déjà envoyé ton score');
+  }
+
+  const updated = await Game.findOneAndUpdate(
+    {
+      _id: game._id,
+      status: 'playing',
+      participations: { $elemMatch: { user: participation.user, score: null } }
+    },
+    { $set: { 'participations.$.score': score } },
+    { new: true }
+  );
+  if (!updated) {
+    throw createError(409, 'Tu as déjà envoyé ton score');
+  }
+
+  if (updated.participations.every(p => p.score !== null)) {
+    const ranked = computeRanks(updated.participations.map(p => p.toObject()));
+    updated.participations.forEach((p, i) => {
+      p.rank = ranked[i].rank;
+    });
+    updated.status = 'finished';
+    await updated.save();
+  }
+
+  res.send(updated.participations.find(p => p.user.toString() === userId));
 }
