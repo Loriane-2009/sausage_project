@@ -10,6 +10,7 @@ import usersRouter from './routes/users.js';
 import authRouter from './routes/auth.js';
 import mapsRouter from './routes/maps.js';
 import gamesRouter from './routes/games.js';
+import participationsRouter from './routes/participations.js';
 
 const app = express();
 
@@ -21,6 +22,7 @@ app.use('/api/users', usersRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/maps', mapsRouter);
 app.use('/api/games', gamesRouter);
+app.use('/api/games/:id/participations', participationsRouter);
 
 await mongoose.connect(databaseUrl);
 
