@@ -8,6 +8,7 @@ import { databaseUrl } from './config.js';
 import indexRouter from './routes/index.js';
 import usersRouter from './routes/users.js';
 import authRouter from './routes/auth.js';
+import mapsRouter from './routes/maps.js';
 import gamesRouter from './routes/games.js';
 import participationsRouter from './routes/participations.js';
 
@@ -19,6 +20,7 @@ app.use(express.json());
 app.use('/', indexRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/auth', authRouter);
+app.use('/api/maps', mapsRouter);
 app.use('/api/games', gamesRouter);
 app.use('/api/games/:id/participations', participationsRouter);
 
