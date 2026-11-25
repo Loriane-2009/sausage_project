@@ -12,7 +12,10 @@ import mongoose from 'mongoose';
 import supertest from 'supertest';
 
 import { authenticate } from '../src/middlewares/authenticate.js';
-import { requireAdmin, requireSelfOrAdmin } from '../src/middlewares/authorize.js';
+import {
+  requireAdmin,
+  requireSelfOrAdmin
+} from '../src/middlewares/authorize.js';
 import { cleanUpDatabase, createUser, generateToken } from './utils.js';
 
 const app = express();

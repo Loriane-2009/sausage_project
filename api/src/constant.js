@@ -5,5 +5,5 @@ export const GRID_SIZE = 20;
 export const OBSTACLES_BY_DIFFICULTY = {
   easy: 2,
   medium: 4,
-  hard: 6,
+  hard: 6
 };
