@@ -33,115 +33,174 @@ async function createGame(host, overrides = {}) {
 }
 
 describe('POST /api/games/:id/participations', () => {
-  let host;
-  let player;
-  let playerToken;
+  let hote;
+  let joueur;
+  let autre;
 
   beforeEach(async () => {
-    host = await createUser({ username: 'hote', email: 'hote@test.ch' });
-    player = await createUser({ username: 'joueur', email: 'joueur@test.ch' });
-    playerToken = generateToken(player);
+    hote = await createUser({ username: 'hote', email: 'hote@test.ch' });
+    joueur = await createUser({ username: 'joueur', email: 'joueur@test.ch' });
+    autre = await createUser({ username: 'autre', email: 'autre@test.ch' });
   });
 
-  const join = (gameId, token, body) =>
+  const join = async (gameId, user, body = { invitationCode: 'ABC234' }) =>
     supertest(app)
       .post(`/api/games/${gameId}/participations`)
-      .set('Authorization', `Bearer ${token}`)
+      .set('Authorization', `Bearer ${await generateToken(user)}`)
       .send(body);
 
-  it('ajoute le joueur connecté à une partie en waiting avec le bon code (201)', async () => {
-    const game = await createGame(host);
-    const res = await join(game.id, playerToken, { invitationCode: 'ABC234' });
-
+  it('201 : un joueur rejoint la partie avec le bon code', async () => {
+    const game = await createGame(hote);
+    const res = await join(game.id, joueur);
     assert.equal(res.status, 201);
     assert.equal(
       res.headers.location,
-      `/api/games/${game.id}/participations/${player.id}`
+      `/api/games/${game.id}/participations/${joueur.id}`
     );
-    assert.deepEqual(res.body, { user: player.id, score: null, rank: null });
-
+    assert.deepEqual(res.body, { user: joueur.id, score: null, rank: null });
     const inDb = await Game.findById(game.id);
     assert.equal(inDb.participations.length, 2);
-    assert.ok(inDb.participations[1].user.equals(player._id));
   });
 
-  it('refuse sans token (401)', async () => {
-    const game = await createGame(host);
+  it('401 : sans token', async () => {
+    const game = await createGame(hote);
     const res = await supertest(app)
       .post(`/api/games/${game.id}/participations`)
       .send({ invitationCode: 'ABC234' });
-
     assert.equal(res.status, 401);
   });
 
-  it("refuse un code d'invitation incorrect (403)", async () => {
-    const game = await createGame(host);
-    const res = await join(game.id, playerToken, { invitationCode: 'ZZZ999' });
-
+  it("403 : mauvais code d'invitation", async () => {
+    const game = await createGame(hote);
+    const res = await join(game.id, joueur, { invitationCode: 'ZZZ999' });
     assert.equal(res.status, 403);
     const inDb = await Game.findById(game.id);
     assert.equal(inDb.participations.length, 1);
   });
 
-  it('refuse une partie inexistante (404)', async () => {
-    const res = await join(new mongoose.Types.ObjectId(), playerToken, {
-      invitationCode: 'ABC234'
-    });
-
+  it('404 : partie inconnue', async () => {
+    const res = await join(new mongoose.Types.ObjectId(), joueur);
     assert.equal(res.status, 404);
   });
 
-  it('refuse une partie pleine (409)', async () => {
-    const other = await createUser({
-      username: 'autre',
-      email: 'autre@test.ch'
-    });
-    const game = await createGame(host, {
+  it('409 : la partie est pleine', async () => {
+    const game = await createGame(hote, {
       maxPlayers: 2,
-      participations: [{ user: host._id }, { user: other._id }]
+      participations: [{ user: hote._id }, { user: autre._id }]
     });
-    const res = await join(game.id, playerToken, { invitationCode: 'ABC234' });
-
+    const res = await join(game.id, joueur);
     assert.equal(res.status, 409);
   });
 
-  it('refuse une partie déjà lancée (409)', async () => {
-    const game = await createGame(host, { status: 'playing' });
-    const res = await join(game.id, playerToken, { invitationCode: 'ABC234' });
-
+  it('409 : la partie a déjà été lancée', async () => {
+    const game = await createGame(hote, { status: 'playing' });
+    const res = await join(game.id, joueur);
     assert.equal(res.status, 409);
   });
 
-  it('refuse un joueur déjà inscrit (409)', async () => {
-    const game = await createGame(host);
-    const res = await join(game.id, generateToken(host), {
-      invitationCode: 'ABC234'
-    });
-
+  it('409 : le joueur participe déjà', async () => {
+    const game = await createGame(hote);
+    const res = await join(game.id, hote);
     assert.equal(res.status, 409);
   });
 });
 
 describe('DELETE /api/games/:id/participations/:userId', () => {
-  it.todo('permet à un joueur de quitter la partie (204)');
-  it.todo("permet à l'hôte d'exclure un joueur (204)");
-  it.todo("supprime la partie quand l'hôte la quitte (204)");
-  it.todo('refuse sans token (401)');
-  it.todo("refuse qu'un joueur exclue quelqu'un d'autre (403)");
-  it.todo('refuse une partie ou une participation inexistante (404)');
-  it.todo("refuse si la partie n'est plus en waiting (409)");
+  let hote;
+  let joueur;
+  let autre;
+
+  beforeEach(async () => {
+    hote = await createUser({ username: 'hote', email: 'hote@test.ch' });
+    joueur = await createUser({ username: 'joueur', email: 'joueur@test.ch' });
+    autre = await createUser({ username: 'autre', email: 'autre@test.ch' });
+  });
+
+  const leave = async (gameId, userId, user) =>
+    supertest(app)
+      .delete(`/api/games/${gameId}/participations/${userId}`)
+      .set('Authorization', `Bearer ${await generateToken(user)}`);
+
+  const gameWithPlayers = (overrides = {}) =>
+    createGame(hote, {
+      participations: [
+        { user: hote._id },
+        { user: joueur._id },
+        { user: autre._id }
+      ],
+      ...overrides
+    });
+
+  it('204 : un joueur quitte la partie', async () => {
+    const game = await gameWithPlayers();
+    const res = await leave(game.id, joueur.id, joueur);
+    assert.equal(res.status, 204);
+    const inDb = await Game.findById(game.id);
+    assert.equal(inDb.participations.length, 2);
+    assert.ok(!inDb.participations.some(p => p.user.equals(joueur._id)));
+  });
+
+  it("204 : l'hôte exclut un joueur", async () => {
+    const game = await gameWithPlayers();
+    const res = await leave(game.id, joueur.id, hote);
+    assert.equal(res.status, 204);
+    const inDb = await Game.findById(game.id);
+    assert.equal(inDb.participations.length, 2);
+  });
+
+  it("204 : la partie est supprimée quand l'hôte la quitte", async () => {
+    const game = await gameWithPlayers();
+    const res = await leave(game.id, hote.id, hote);
+    assert.equal(res.status, 204);
+    assert.equal(await Game.findById(game.id), null);
+  });
+
+  it('401 : sans token', async () => {
+    const game = await gameWithPlayers();
+    const res = await supertest(app).delete(
+      `/api/games/${game.id}/participations/${joueur.id}`
+    );
+    assert.equal(res.status, 401);
+  });
+
+  it('403 : un joueur ne peut pas exclure un autre joueur', async () => {
+    const game = await gameWithPlayers();
+    const res = await leave(game.id, autre.id, joueur);
+    assert.equal(res.status, 403);
+    const inDb = await Game.findById(game.id);
+    assert.equal(inDb.participations.length, 3);
+  });
+
+  it('404 : partie inconnue', async () => {
+    const res = await leave(new mongoose.Types.ObjectId(), joueur.id, joueur);
+    assert.equal(res.status, 404);
+  });
+
+  it("404 : le joueur n'est pas inscrit à la partie", async () => {
+    const game = await createGame(hote);
+    const res = await leave(game.id, joueur.id, hote);
+    assert.equal(res.status, 404);
+  });
+
+  it("409 : la partie n'est plus en attente", async () => {
+    const game = await gameWithPlayers({ status: 'playing' });
+    const res = await leave(game.id, joueur.id, joueur);
+    assert.equal(res.status, 409);
+    const inDb = await Game.findById(game.id);
+    assert.equal(inDb.participations.length, 3);
+  });
 });
 
 describe('PATCH /api/games/:id/participations/:userId', () => {
-  it.todo('enregistre le score du joueur connecté (200)');
+  it.todo('200 : un joueur envoie son score');
   it.todo(
-    'passe la partie en finished et calcule les rangs au dernier score (200)'
+    '200 : le dernier score passe la partie en finished et calcule les rangs'
   );
-  it.todo('refuse sans token (401)');
-  it.todo("refuse d'enregistrer le score d'un autre joueur (403)");
-  it.todo('refuse une partie ou une participation inexistante (404)');
-  it.todo("refuse si la partie n'est pas en playing (409)");
-  it.todo('refuse un score déjà envoyé (409)');
-  it.todo('refuse un score manquant (422)');
-  it.todo('refuse un score négatif ou non entier (422)');
+  it.todo('401 : sans token');
+  it.todo("403 : un joueur ne peut pas envoyer le score d'un autre");
+  it.todo('404 : partie inconnue');
+  it.todo("409 : la partie n'est pas en cours");
+  it.todo('409 : le score a déjà été envoyé');
+  it.todo('422 : score manquant');
+  it.todo('422 : score négatif ou non entier');
 });
