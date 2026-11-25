@@ -2,6 +2,7 @@
 // À importer dans chaque fichier *.test.js.
 
 import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 
 import User from '../src/models/user.js';
@@ -34,4 +35,13 @@ export async function createUser({
   return User.create({ username, email, passwordHash, role });
 }
 
-// generateToken(user) sera ajouté ici avec la connexion (POST /api/auth/tokens).
+/**
+ * Génère un JWT valide pour un utilisateur, comme POST /api/auth/tokens.
+ * À utiliser dans les tests des routes protégées :
+ *   .set('Authorization', `Bearer ${generateToken(user)}`)
+ */
+export function generateToken(user) {
+  return jwt.sign({ sub: user._id.toString() }, process.env.JWT_SECRET, {
+    expiresIn: '1h'
+  });
+}
