@@ -52,7 +52,7 @@ export async function updateUser(req, res) {
 
   // Seuls ces champs peuvent être modifiés, le reste est ignoré
   const fields = ['username', 'email', 'password', 'role'].filter(
-    field => body[field] !== undefined
+    field => Object.hasOwn(body, field)
   );
   if (fields.length === 0) {
     return res.status(422).send({ message: 'Aucun champ à modifier' });

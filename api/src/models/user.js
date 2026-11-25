@@ -31,7 +31,8 @@ const userSchema = new Schema(
     role: {
       type: String,
       enum: ['user', 'admin'],
-      default: 'user'
+      default: 'user',
+      required: true
     }
   },
   // Ajoute automatiquement createdAt et updatedAt
