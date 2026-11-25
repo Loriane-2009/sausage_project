@@ -9,6 +9,7 @@ import indexRouter from './routes/index.js';
 import usersRouter from './routes/users.js';
 import authRouter from './routes/auth.js';
 import gamesRouter from './routes/games.js';
+import participationsRouter from './routes/participations.js';
 
 const app = express();
 
@@ -19,6 +20,7 @@ app.use('/', indexRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/games', gamesRouter);
+app.use('/api/games/:id/participations', participationsRouter);
 
 await mongoose.connect(databaseUrl);
 
