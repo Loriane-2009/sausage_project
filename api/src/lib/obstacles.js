@@ -1,4 +1,4 @@
-import { GRID_SIZE, OBSTACLES_BY_DIFFICULTY } from "../constant.js";
+import { GRID_SIZE, OBSTACLES_BY_DIFFICULTY } from '../constant.js';
 
 // Lance une erreur si les obstacles sont invalides, ne fait rien sinon
 export function validateObstacles(obstacles, difficulty) {
@@ -10,7 +10,7 @@ export function validateObstacles(obstacles, difficulty) {
   // 1. Le bon nombre d'obstacles
   if (!Array.isArray(obstacles) || obstacles.length !== expected) {
     throw new Error(
-      `La difficulté ${difficulty} exige exactement ${expected} obstacles`,
+      `La difficulté ${difficulty} exige exactement ${expected} obstacles`
     );
   }
 
@@ -25,7 +25,7 @@ export function validateObstacles(obstacles, difficulty) {
       y < GRID_SIZE;
     if (!inGrid) {
       throw new Error(
-        `L'obstacle (${x}, ${y}) est en dehors de la grille ${GRID_SIZE}x${GRID_SIZE}`,
+        `L'obstacle (${x}, ${y}) est en dehors de la grille ${GRID_SIZE}x${GRID_SIZE}`
       );
     }
   }

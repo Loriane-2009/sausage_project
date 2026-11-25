@@ -9,7 +9,7 @@ const adminEmail = process.env.ADMIN_EMAIL ?? 'admin@sausage.local';
 const adminPassword = process.env.ADMIN_PASSWORD;
 
 if (!adminPassword) {
-  console.error('ADMIN_PASSWORD est obligatoire pour créer l\'admin');
+  console.error("ADMIN_PASSWORD est obligatoire pour créer l'admin");
   process.exit(1);
 }
 
