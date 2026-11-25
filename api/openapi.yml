@@ -206,6 +206,7 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
         '422':
+          $ref: '#/components/responses/UnprocessableEntity'
           description: |
             Obstacle hors grille, en doublon, sur la zone de départ,
             ou nombre d'obstacles ne correspondant pas à la difficulté
@@ -856,8 +857,11 @@ components:
 
     MapInput:
       type: object
-      required: [difficulty, obstacles]
+      required: [name, difficulty, obstacles]
       properties:
+        name:
+          type: string
+          example: Prairie
         difficulty:
           $ref: '#/components/schemas/Difficulty'
         obstacles:
@@ -869,6 +873,9 @@ components:
       type: object
       minProperties: 1
       properties:
+        name:
+          type: string
+          example: Prairie
         difficulty:
           $ref: '#/components/schemas/Difficulty'
         obstacles:
@@ -879,6 +886,9 @@ components:
     Map:
       type: object
       properties:
+        name:
+          type: string
+          example: Prairie
         id:
           $ref: '#/components/schemas/ObjectId'
         difficulty:
