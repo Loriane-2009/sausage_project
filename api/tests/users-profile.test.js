@@ -164,6 +164,20 @@ describe('PATCH /api/users/:id', () => {
     assert.equal(res.body.role, 'admin');
   });
 
+  test('renvoie 422 si un admin met le rôle à null', async () => {
+    const admin = await createUser({ username: 'admin', role: 'admin' });
+    const ana = await createUser({ username: 'ana' });
+
+    const res = await supertest(app)
+      .patch(`/api/users/${ana.id}`)
+      .set('Authorization', `Bearer ${generateToken(admin)}`)
+      .send({ role: null });
+
+    assert.equal(res.status, 422);
+    const saved = await User.findById(ana.id).exec();
+    assert.equal(saved.role, 'user');
+  });
+
   test('renvoie 403 si un user essaie de changer son propre rôle', async () => {
     const lea = await createUser({ username: 'lea' });
 
