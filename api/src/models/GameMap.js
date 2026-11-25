@@ -54,4 +54,4 @@ mapSchema.set('toJSON', {
   }
 });
 
-export default mongoose.model('Map', mapSchema);
+export default mongoose.model('GameMap', mapSchema);
