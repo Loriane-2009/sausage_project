@@ -94,7 +94,9 @@ paths:
     patch:
       tags: [Users]
       summary: Modifie un profil
-      description: Accès **soi-même ou admin**. Le `role` n'est modifiable que par un admin.
+      description: |
+        Accès **soi-même ou admin**. Le `role` n'est modifiable que par un admin.
+        Le mot de passe est enregistré haché, comme à l'inscription.
       requestBody:
         required: true
         content:
@@ -111,7 +113,11 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: Profil d'un autre utilisateur, ou changement de `role` sans être admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -121,14 +127,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '422':
-          $ref: '#/components/responses/UnprocessableEntity'
+          description: Aucun champ à modifier, ou données invalides (username, email, mot de passe trop court)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
     delete:
       tags: [Users]
       summary: Supprime un compte
       description: |
-        Accès **soi-même ou admin**. Supprime aussi ses participations et les parties
-        dont il est l'hôte (donc les participations des autres joueurs à ces parties).
-        Les classements se recalculent seuls.
+        Accès **soi-même ou admin**. Supprime aussi les parties dont il est l'hôte,
+        et le retire des parties des autres joueurs. Les classements se recalculent seuls.
       responses:
         '204':
           description: Compte supprimé
@@ -787,16 +796,26 @@ components:
     UserUpdate:
       type: object
       minProperties: 1
+      description: Au moins un champ. Les champs absents ne sont pas modifiés.
       properties:
         username:
           type: string
+          minLength: 3
+          maxLength: 20
+          description: Unique
+          example: lea2
         email:
           type: string
           format: email
+          description: Unique, enregistré en minuscules
         password:
           type: string
           format: password
+          minLength: 8
           writeOnly: true
+        role:
+          $ref: '#/components/schemas/Role'
+          description: Modifiable uniquement par un admin (`403` sinon)
 
     User:
       type: object
